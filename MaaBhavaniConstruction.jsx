@@ -339,9 +339,11 @@ body {
 }
 .hero-heading {
   font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(3rem, 7vw, 5.2rem);
+  font-size: clamp(2.4rem, 5.5vw, 4.5rem);
   font-weight: 700; color: #fff;
-  line-height: 1.08; margin-bottom: .25rem;
+  line-height: 1.1; margin-bottom: .25rem;
+  max-width: 100%; word-break: break-word;
+  overflow-wrap: break-word;
 }
 .hero-heading .typewriter-wrap {
   display: block; color: var(--saffron);
@@ -362,8 +364,8 @@ body {
 }
 .hero-btns { display: flex; gap: 1rem; flex-wrap: wrap; }
 .hero-badges {
-  position: absolute; bottom: 6rem; left: 2rem;
   display: flex; gap: .75rem; flex-wrap: wrap;
+  margin-bottom: 2rem;
 }
 .hero-badge {
   background: rgba(255,255,255,.06);
@@ -1331,6 +1333,11 @@ function HomePage({ setPage }) {
             electrical solutions across Bihar. GST-verified, government-empanelled,
             and committed to building a safer, stronger tomorrow.
           </p>
+          <div className="hero-badges" aria-label="Key highlights">
+            <span className="hero-badge">50+ Projects</span>
+            <span className="hero-badge">GST Verified</span>
+            <span className="hero-badge">Est. 2022</span>
+          </div>
           <div className="hero-btns">
             <button className="btn btn-primary" onClick={() => navigate("civil")}>
               Our Services <ArrowRight size={16} />
@@ -1338,11 +1345,6 @@ function HomePage({ setPage }) {
             <button className="btn btn-outline" onClick={() => navigate("contact")}>
               Get Free Quote
             </button>
-          </div>
-          <div className="hero-badges" aria-label="Key highlights">
-            <span className="hero-badge">50+ Projects</span>
-            <span className="hero-badge">GST Verified</span>
-            <span className="hero-badge">Est. 2022</span>
           </div>
         </div>
       </section>
@@ -1781,6 +1783,9 @@ function ContactPage() {
   const [form, setForm] = useState({ name: "", phone: "", email: "", service: "", message: "" });
   const [errors, setErrors] = useState({});
   const [toast, setToast] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  const [toastError, setToastError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const validate = () => {
     const e = {};
@@ -1792,14 +1797,37 @@ function ContactPage() {
     return e;
   };
 
-  const handleSubmit = (e) => {
+  const showToast = (msg, isError = false) => {
+    setToastMsg(msg);
+    setToastError(isError);
+    setToast(true);
+    setTimeout(() => setToast(false), 5000);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const err = validate();
     if (Object.keys(err).length) { setErrors(err); return; }
     setErrors({});
-    setToast(true);
-    setForm({ name: "", phone: "", email: "", service: "", message: "" });
-    setTimeout(() => setToast(false), 4000);
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setForm({ name: "", phone: "", email: "", service: "", message: "" });
+        showToast(data.message || "Message sent! We'll get back to you shortly.");
+      } else {
+        showToast(data.error || "Something went wrong. Please try again.", true);
+      }
+    } catch {
+      showToast("Network error. Please check your connection and try again.", true);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const contactItems = [
@@ -1812,11 +1840,17 @@ function ContactPage() {
   return (
     <>
       {/* Toast */}
-      <div className={`toast${toast ? " show" : ""}`} role="alert" aria-live="polite">
-        <CheckCircle size={20} color="#48bb78" />
+      <div
+        className={`toast${toast ? " show" : ""}`}
+        role="alert" aria-live="polite"
+        style={toastError ? { background: "#4a1818", borderLeftColor: "#e53e3e" } : {}}
+      >
+        <CheckCircle size={20} color={toastError ? "#e53e3e" : "#48bb78"} />
         <div>
-          <div style={{ fontWeight: 700, marginBottom: ".2rem" }}>Message Sent!</div>
-          <div style={{ fontSize: ".82rem", opacity: .85 }}>We'll get back to you within 24 hours.</div>
+          <div style={{ fontWeight: 700, marginBottom: ".2rem" }}>
+            {toastError ? "Submission Failed" : "Message Sent!"}
+          </div>
+          <div style={{ fontSize: ".82rem", opacity: .85 }}>{toastMsg}</div>
         </div>
       </div>
 
@@ -1924,8 +1958,10 @@ function ContactPage() {
                     />
                     {errors.message && <p className="form-error"><AlertCircle size={12} />{errors.message}</p>}
                   </div>
-                  <button type="submit" className="form-submit">
-                    <Send size={16} /> Send Message
+                  <button type="submit" className="form-submit" disabled={submitting}
+                    style={submitting ? { opacity: .7, cursor: "not-allowed" } : {}}
+                  >
+                    <Send size={16} /> {submitting ? "Sending…" : "Send Message"}
                   </button>
                 </form>
               </div>
